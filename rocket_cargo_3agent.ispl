@@ -1,0 +1,164 @@
+--3 workers in the rocket (agent 1, 2 and 3)
+-- each agent has different capabilities
+-- Agent 1 can: try to load the cargo, try to unload the cargo, initiate the flight or nothing
+-- Agent 2 can do unload or nothing
+-- Agent 3 can do load, refill the fuel tank, or nothing
+Agent Environment
+	Obsvars:
+		rocket: {London, Paris};
+		cargo: {London, Paris, insideRocket};
+		fuel: {full, empty};
+	end Obsvars
+	Vars:
+	end Vars
+	Actions = {};
+	Protocol:
+	end Protocol
+	Evolution:
+		rocket=London and fuel=empty if (rocket=Paris and agent1.Action=flight)
+				and (agent2.Action=unload_cargo or agent2.Action=nothing)
+				and (agent3.Action=load_cargo or agent3.Action=fuel or agent3.Action=nothing);
+		--
+		rocket=Paris and fuel=empty if (rocket=London and agent1.Action=flight)
+				and (agent2.Action=unload_cargo or agent2.Action=nothing)
+				and (agent3.Action=load_cargo or agent3.Action=fuel or agent3.Action=nothing);
+		--
+		--load_cargo
+		--
+		cargo=insideRocket if
+				( (rocket=London and cargo=London) or (rocket=Paris and cargo=Paris) )
+				and(
+				( (agent1.Action=load_cargo and (agent3.Action=load_cargo or agent3.Action=nothing)) or
+				(agent3.Action=load_cargo and agent1.Action=nothing))
+				);
+		--
+		--unload_cargo London
+		--
+		cargo=London if ( (rocket=London and cargo=insideRocket) and
+				((agent1.Action=unload_cargo and agent3.Action=nothing) or
+				(agent2.Action=unload_cargo and agent1.Action=nothing)) );
+		--
+		--unload cargo Paris
+		cargo=Paris if ( (rocket=Paris and cargo=insideRocket)
+				and ( (agent1.Action=unload_cargo and agent3.Action=nothing) or (agent2.Action=unload_cargo and agent1.Action=nothing and agent3.Action=nothing)) );
+		--
+		--fuel
+		--
+		fuel=full if agent3.Action=fuel and agent1.Action=nothing and agent2.Action=nothing;
+		--
+		-- unload-fuel Paris
+		cargo=Paris and fuel=full if ( (rocket=Paris and cargo=insideRocket and agent3.Action=fuel)
+				and ( (agent1.Action=unload_cargo) or (agent2.Action=unload_cargo and agent1.Action=nothing)) );
+		--
+		--unload-fuel London
+		cargo=London and fuel=full if ( (rocket=London and cargo=insideRocket and agent3.Action=fuel)
+				and ( (agent1.Action=unload_cargo) or (agent2.Action=unload_cargo and agent1.Action=nothing)) );
+		--
+		--load-fuel
+		(cargo=insideRocket and fuel=full)
+				if ( (rocket=London and cargo=London) or (rocket=Paris and cargo=Paris) ) and agent3.Action=fuel
+				and (agent1.Action=load_cargo);
+		--
+		--
+	end Evolution
+end Agent
+
+Agent agent1
+	Vars:
+		tmp:{none};
+	end Vars
+	Actions = {flight, load_cargo, unload_cargo, nothing};
+	Protocol:
+		Environment.fuel=full: {flight, nothing};
+		Environment.cargo=insideRocket: {unload_cargo, nothing};
+		Environment.rocket=London and Environment.cargo=London: {load_cargo, nothing};
+		Environment.rocket=Paris and Environment.cargo=Paris: {load_cargo, nothing};
+		Other:{nothing};
+	end Protocol
+	Evolution:
+		tmp=none if Action=flight or Action=load_cargo or Action=unload_cargo or Action=nothing;
+	end Evolution
+end Agent
+
+Agent agent2
+	Vars:
+		tmp:{none};
+	end Vars
+	Actions = {unload_cargo, nothing};
+	Protocol:
+		Environment.cargo=insideRocket: {unload_cargo, nothing};
+		Other:{nothing};
+	end Protocol
+	Evolution:
+		tmp=none if Action=unload_cargo or Action=nothing;
+	end Evolution
+end Agent
+
+Agent agent3
+	Vars:
+		tmp:{none};
+	end Vars
+	Actions = {load_cargo, fuel, nothing};
+	Protocol:
+		Environment.rocket=London and Environment.cargo=London: {load_cargo, nothing};
+		Environment.rocket=Paris and Environment.cargo=Paris: {load_cargo, nothing};
+		Environment.fuel=empty: {fuel, nothing};
+		Other: {nothing};
+	end Protocol
+	Evolution:
+		tmp=none if Action=fuel or Action=load_cargo or Action=nothing;
+	end Evolution
+end Agent
+
+Evaluation
+	roL if Environment.rocket=London;
+	roP if Environment.rocket=Paris;
+	caL if Environment.cargo=London;
+	caP if Environment.cargo=Paris;
+	caR if Environment.cargo=insideRocket;
+	nofuel if Environment.fuel=empty;
+	fuel if Environment.fuel=full;
+end Evaluation
+
+InitStates
+	(Environment.rocket=London and Environment.fuel=empty and Environment.cargo=London and
+			agent1.tmp=none and agent2.tmp=none and agent3.tmp=none) or
+			(Environment.rocket=Paris and Environment.fuel=empty and Environment.cargo=Paris and
+			agent1.tmp=none and agent2.tmp=none and agent3.tmp=none) or
+			(Environment.rocket=London and Environment.fuel=empty and Environment.cargo=Paris and
+			agent1.tmp=none and agent2.tmp=none and agent3.tmp=none) or
+			(Environment.rocket=Paris and Environment.fuel=empty and Environment.cargo=London and
+			agent1.tmp=none and agent2.tmp=none and agent3.tmp=none) or
+			(Environment.rocket=London and Environment.fuel=full and Environment.cargo=London and
+			agent1.tmp=none and agent2.tmp=none and agent3.tmp=none);
+end InitStates
+
+Groups
+	g1={agent1};
+	g2={agent2};
+	g3={agent3};
+	g12={agent1,agent2};
+	g13={agent1, agent3};
+	g23={agent2, agent3};
+	g123={agent1,agent2,agent3};
+end Groups
+
+Fairness
+end Fairness
+
+Formulae
+	--can agent 1 e 3 move the cargo to any location?
+	(<g13>F(caP)) and (<g13>F(caL));
+	--
+	--
+	-- can agent 1 3 move cargo to Paris? --true
+	<g13>F(caP);
+	--
+	--
+	-- can agent 1 2 move cargo to Paris? --true
+	<g12>F(caP);
+	--
+	--
+	--can agent 3 keep cargo in paris Forever? --true
+	<g3>G (caP);
+end Formulae
