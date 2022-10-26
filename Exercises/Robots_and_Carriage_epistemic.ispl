@@ -1,0 +1,148 @@
+Agent Environment
+	Vars:
+		r1_knowledge_location: {q1, q0_q2};
+		r2_knowledge_location: {q2, q0_q1};
+		carriage_location:{q0,q1,q2};
+	end Vars
+	Actions = {};
+	Protocol:
+	end Protocol
+	Evolution:
+		carriage_location=q0 and r1_knowledge_location=q0_q2 and r2_knowledge_location=q0_q1 if (
+				(carriage_location=q0 and robot1.Action=wait and robot2.Action=wait) or
+				(carriage_location=q0 and robot1.Action=push and robot2.Action=push) or
+				(carriage_location=q1 and robot1.Action=wait and robot2.Action=push) or
+				(carriage_location=q2 and robot1.Action=push and robot2.Action=wait) );
+		carriage_location=q1 and r1_knowledge_location=q1 and r2_knowledge_location=q0_q1 if (
+				(carriage_location=q1 and robot1.Action=wait and robot2.Action=wait) or
+				(carriage_location=q1 and robot1.Action=push and robot2.Action=push) or
+				(carriage_location=q2 and robot1.Action=wait and robot2.Action=push) or
+				(carriage_location=q0 and robot1.Action=push and robot2.Action=wait) );
+		carriage_location=q2 and r1_knowledge_location=q0_q2 and r2_knowledge_location=q2 if (
+				(carriage_location=q2 and robot1.Action=wait and robot2.Action=wait) or
+				(carriage_location=q2 and robot1.Action=push and robot2.Action=push) or
+				(carriage_location=q0 and robot1.Action=wait and robot2.Action=push) or
+				(carriage_location=q1 and robot1.Action=push and robot2.Action=wait) );
+	end Evolution
+end Agent
+
+Agent robot1
+	Lobsvars={r1_knowledge_location};
+	Vars:
+		tmp:{none};
+	end Vars
+	Actions = {wait,push};
+	Protocol:
+		Other: {wait, push};
+	end Protocol
+	Evolution:
+		tmp=none if Action=wait or Action=push;
+	end Evolution
+end Agent
+
+Agent robot2
+	Lobsvars={r2_knowledge_location};
+	Vars:
+		tmp:{none};
+	end Vars
+	Actions = {wait,push};
+	Protocol:
+		Other: {wait, push};
+	end Protocol
+	Evolution:
+		tmp=none if Action=wait or Action=push;
+	end Evolution
+end Agent
+
+Evaluation
+	pos0 if (Environment.carriage_location=q0);
+	pos1 if (Environment.carriage_location=q1);
+	pos2 if (Environment.carriage_location=q2);
+end Evaluation
+
+InitStates
+	( (Environment.carriage_location=q0 and Environment.r1_knowledge_location=q0_q2 and Environment.r2_knowledge_location=q0_q1) or
+			(Environment.carriage_location=q1 and Environment.r1_knowledge_location=q1 and Environment.r2_knowledge_location=q0_q1) or
+			(Environment.carriage_location=q2 and Environment.r1_knowledge_location=q0_q2 and Environment.r2_knowledge_location=q2)
+			);
+end InitStates
+
+Groups
+	g1={robot1};
+	g2={robot2};
+	g12={robot1, robot2};
+end Groups
+
+Fairness
+end Fairness
+
+Formulae
+	---------------EPISTEMIC
+	--
+	--conoscenza robot1
+	pos0 -> K(robot1,pos0);
+	pos1 -> K(robot1,pos1);
+	pos2 -> K(robot1,pos2);
+	--
+	--conoscenza robot2
+	pos0 -> K(robot2,pos0);
+	pos1 -> K(robot2,pos1);
+	pos2 -> K(robot2,pos2);
+	--il robot1 sa che quando il carro sta in pos0 la posizione è 0 oppure 2, ma non quale precisamente
+	pos0 -> ( (!K(robot1, pos0)) and (!K(robot1,pos2)) and (K(robot1, (pos0 or pos2))) );
+	--
+	--Il robot1 sa che (quando il carro sta in pos0) la posizione non è pos1
+	pos0 -> K(robot1, !pos1);
+	--
+	--Il robot1 sa che il robot2 può distinguere lo stato pos2
+	pos0 -> K(robot1, (pos2->K(robot2, pos2) and !pos2 -> K(robot2, !pos2)) );
+	--
+	--Il robot1 sa che il robot2 sa che il robot1 sa
+	pos1 -> K(robot1, K(robot2, K(robot1, pos2-> K(robot2,pos2) and !pos2 -> K(robot2,!pos2))));
+	--
+	--GK=mutual knowledge (everybody in group knows that)
+	--GCK=common knowledge (all the agent in group knows that, and they know that they know it)
+	--DK=distributed knowledge (if agents shared their information, they woyld be able to recognize that)
+	--Nello stato q2, i robot non hanno una mutua conoscenza della posizione del carro
+	pos2-> !GK(g12, pos2);
+	--
+	--Nello stato q2 entrambi sanno che la posizione non è q1.
+	pos2->GK(g12, !pos1);
+	--
+	--La loro collective knowledge does not extend to common knowledge
+	pos2-> !GCK(g12,!pos2);
+	--
+	--Se i robot condividono le loro informazioni, entrambi sanno che la posizione è pos2
+	pos2 -> DK(g12,pos2);
+	--
+	--
+	--
+	-- LTL usa il quantificatore A
+	---------------(ATLK) con imperfect information
+	--M,q soddisfa phi sse path soddisfa phi PER TUTTI I PERCORSI DEL PATH IN M che partono da q
+	--infatti, dalla posizione 0, il robot1 non ha delle azioni per rimanere sempre in pos0
+	pos0 -> <g1>G(pos0);
+	--ma è anche vero che non ha delle azioni per NON rimanere sempre in pos0
+	!(pos0 -> <g1>G(pos0));
+
+	pos0-> <g1>F(pos1);
+	!(pos0-> <g1>F(pos1));
+	
+	((<g1>G(!pos0)) -> (<g1>F(pos1 or pos2)));
+	
+	---I giocatori 12 hanno una strategia collettiva in cui prima o poi vanno in pos1 
+	pos0-> <g12>F(pos1);
+	---
+	---
+	---------------CTLK
+	--non è vero che esiste un percorso in cui in un nodo tutti e due i robot sanno esattamente dove stanno
+	!(EF(K(robot1,pos0) and K(robot2,pos0)));
+	!(EF(K(robot1,pos1) and K(robot2,pos1)));
+	!(EF(K(robot1,pos2) and K(robot2,pos2)));
+	
+	------CTL*
+	CTL* E( F( K(robot1,pos0) or K(robot1,pos1) or K(robot1,pos2) ) and ( F( K(robot2,pos1) or K(robot2,pos1) or K(robot2,pos2)) ));
+	--
+	--
+	------ATLK
+end Formulae

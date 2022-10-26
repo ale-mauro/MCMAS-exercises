@@ -1,0 +1,84 @@
+Agent rocket_cargo
+	Vars:
+		rocket_place:{London,Paris};
+		fuel: {full, empty};
+		cargo_place:{London,Paris,insideRocket};
+	end Vars
+	Actions = {r_to_London, r_to_Paris, makefuel,
+			c_goInsideRocket, fuel_inside, c_getOutsideRocketP, c_getOutsideRocketL, fuel_outsideL, fuel_outsideP, nothing};
+	Protocol:
+		rocket_place=London and fuel=full: {r_to_Paris, nothing};
+		rocket_place=Paris and fuel=full: {r_to_London, nothing};
+		fuel=empty: {makefuel, nothing};
+		cargo_place=London and rocket_place=London: {c_goInsideRocket, nothing};
+		cargo_place=London and rocket_place=London and fuel=empty: {c_goInsideRocket, fuel_inside, nothing};
+		cargo_place=Paris and rocket_place=Paris: {c_goInsideRocket, nothing};
+		cargo_place=Paris and rocket_place=Paris and fuel=empty: {c_goInsideRocket, fuel_inside, nothing};
+		cargo_place=insideRocket and rocket_place=London: {c_getOutsideRocketL, nothing};
+		cargo_place=insideRocket and rocket_place=London and fuel=empty: {c_getOutsideRocketL, fuel_outsideL, nothing};
+		cargo_place=insideRocket and rocket_place=Paris: {c_getOutsideRocketP, nothing};
+		cargo_place=insideRocket and rocket_place=Paris and fuel=empty: {c_getOutsideRocketP, fuel_outsideP, nothing};
+		Other: {nothing};
+	end Protocol
+	Evolution:
+		rocket_place=London and fuel=empty if (Action=r_to_London);
+		rocket_place=Paris and fuel=empty if (Action=r_to_Paris);
+		fuel=full if Action=makefuel;
+		cargo_place=London if (Action=c_getOutsideRocketL);
+		cargo_place=London and fuel=full if (Action=fuel_outsideL);
+		cargo_place=Paris if (Action=c_getOutsideRocketP);
+		cargo_place=Paris and fuel=full if (Action=fuel_outsideP);
+		cargo_place=insideRocket if (Action=c_goInsideRocket);
+		cargo_place=insideRocket and fuel=full if (Action=fuel_inside);
+	end Evolution
+end Agent
+
+Evaluation
+	roL if rocket_cargo.rocket_place=London;
+	roP if rocket_cargo.rocket_place=Paris;
+	fuelOk if rocket_cargo.fuel=full;
+	nofuel if rocket_cargo.fuel=empty;
+	caL if rocket_cargo.cargo_place=London;
+	caP if rocket_cargo.cargo_place=Paris;
+	caR if rocket_cargo.cargo_place=insideRocket;
+end Evaluation
+
+InitStates
+	( 
+	(rocket_cargo.rocket_place=London and rocket_cargo.cargo_place=London and rocket_cargo.fuel=empty) or
+	(rocket_cargo.rocket_place=London and rocket_cargo.cargo_place=London and rocket_cargo.fuel=full) or
+	(rocket_cargo.rocket_place=Paris and rocket_cargo.cargo_place=London and rocket_cargo.fuel=empty) or
+	(rocket_cargo.rocket_place=Paris and rocket_cargo.cargo_place=London and rocket_cargo.fuel=full) or
+	
+	(rocket_cargo.rocket_place=London and rocket_cargo.cargo_place=insideRocket and rocket_cargo.fuel=empty) or
+	(rocket_cargo.rocket_place=London and rocket_cargo.cargo_place=insideRocket and rocket_cargo.fuel=full) or
+	(rocket_cargo.rocket_place=Paris and rocket_cargo.cargo_place=insideRocket and rocket_cargo.fuel=empty) or
+	(rocket_cargo.rocket_place=Paris and rocket_cargo.cargo_place=insideRocket and rocket_cargo.fuel=full) or
+	
+	(rocket_cargo.rocket_place=London and rocket_cargo.cargo_place=Paris and rocket_cargo.fuel=empty) or
+	(rocket_cargo.rocket_place=London and rocket_cargo.cargo_place=Paris and rocket_cargo.fuel=full) or 
+	(rocket_cargo.rocket_place=Paris and rocket_cargo.cargo_place=Paris and rocket_cargo.fuel=empty) or
+	(rocket_cargo.rocket_place=Paris and rocket_cargo.cargo_place=Paris and rocket_cargo.fuel=full)
+	
+	);
+end InitStates
+
+Groups
+	g1={rocket_cargo};
+end Groups
+
+Fairness
+
+end Fairness
+
+Formulae
+	EF(caP);
+	EF (caR);
+	roL -> EF roP;
+	AG (roL or roP);
+	roL -> AX (roP -> nofuel);
+	--E(fuelOk U caR);
+	AG (roL or caL); --falso 
+	caR -> EG(caR);
+	caL -> EG (caL);
+end Formulae
